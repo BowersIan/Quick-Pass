@@ -5,7 +5,10 @@ import os
 from Crypto.Cipher import AES
 from Crypto.Hash import SHA256
 import argparse
-import clipboard
+try:
+    import clipboard
+except:
+    pass
 from getpass import getpass
 import sqlite3
 import base64
