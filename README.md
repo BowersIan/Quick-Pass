@@ -6,7 +6,8 @@ Requires the Crypto, sqlite3, and clipboard python3 packages. Install them with 
 
 See printout of help message below:
 
-```usage: Quick-Pass.py [-h] [-a] [-c] [-u U] [-s S] [-z] [filepath]
+```
+usage: Quick-Pass.py [-h] [-a] [-c] [-u U] [-s S] [-z] [filepath]
 
 positional arguments:
   filepath    Path to your passwords file. If not supplied will
