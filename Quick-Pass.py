@@ -1,7 +1,6 @@
-#import hashlib
+#!/usr/bin/env python3
 import sys
 import os
-#import configparser
 from Crypto.Cipher import AES
 from Crypto.Hash import SHA256
 import argparse
@@ -13,17 +12,23 @@ from getpass import getpass
 import sqlite3
 import base64
 
+def getDecryptionPassword():
+    pwd = getpass('Encryption Passphrase: ')
+    hsh = hashpassword(pwd.encode('utf-8'))
+    return hsh
+
 def encryptstring(string):
     if len(string)%16 != 0:
-        print(string)
         for i in range (0,16-len(string)%16):
             string=string+'|'
-    #print(len(string))   
-    return base64.b64encode(enc.encrypt(string))
+    return base64.b64encode(getEncrypter().encrypt(string))
+
+def getEncrypter():
+    hsh = getDecryptionPassword()
+    return AES.new(hsh, AES.MODE_CBC, 'IV256 0987654321')
 
 def decryptstring(string):
-    #print(string.encode('ISO-8859-1'))
-    return enc.decrypt(base64.b64decode(string))
+    return getEncrypter().decrypt(base64.b64decode(string))
 
 def hashpassword(pwd):
     hsh = SHA256.new()
@@ -51,6 +56,10 @@ def findRecords(site):
     cursor.execute('SELECT * FROM PASS WHERE SITE = ?;',(site,))
     return cursor.fetchall()
     
+def findAllRecords():
+    cursor.execute('SELECT SITE, USERNAME FROM PASS')
+    return cursor.fetchall()
+
 def outputPassword(pss):
     #enc = AES.new(hsh, AES.MODE_CBC, 'IV256 0987654321')
     password = decryptstring(pss)
@@ -60,60 +69,46 @@ def outputPassword(pss):
         print('Password copied to clipboard')
     else:
         print(p1)
+        
+def getUsername():
+    if args.u is None:
+        username = input('Enter username: ')
+    else:
+        username = args.u
+    return username
+
+def getSiteName():
+    if args.s is None:
+        site = input('Enter sitename: ')
+    else:
+        site = args.s
+    return site
 
 parser=argparse.ArgumentParser()
 parser.add_argument('-a', help='Add or update password', action='store_true')
 parser.add_argument('-c', help='Copy password to clipboard. Requires the clipboard module to be installed', action='store_true')
-parser.add_argument('filepath', help='Path to your passwords file. If not supplied will create/overwrite Data.db', nargs='?')
+parser.add_argument('-u', help='Specify the username for the specific site so you will not be asked if more than one record is found for the site. Ignored if there is only one record listed for the site.')
+parser.add_argument('-s', help='Specify the site to retrieve the password from so you will not be asked')
+parser.add_argument('filepath', help='Path to your passwords file. If not supplied will create/overwrite Data.db', nargs='?', default='Data.db')
+parser.add_argument('-z', help='List known site and username combinations', action='store_true')
 
 args=parser.parse_args()
-
-#find or make config file
-#config = configparser.ConfigParser()
-
-
-#createFile = False
-if not sys.stdin.isatty():
-    temp=sys.stdin.read().split()
-elif args.filepath is None and not args.a:
-    print('Error: No datafile provided.')
-elif args.filepath is not None:
-    with open(args.filepath, 'rb') as f:
-        temp=f.read().decode('ISO-8859-1').splitlines()
-else:
-    args.filepath = 'Data.db'
-    temp=[]
-    
-    
-pwd = getpass('Password: ')
 
 
 if not os.path.isfile(args.filepath):
     DB = sqlite3.connect(args.filepath)
+    #curser is needed to run makeDB
     cursor = DB.cursor()
     makeDB()
 else:
     DB = sqlite3.connect(args.filepath)
     cursor = DB.cursor()
-
-
-
-hsh = hashpassword(pwd.encode('utf-8'))
-
-
-
-
-#passList = []
-#for line in temp:
-    #passList.append(line.split('||'))
     
-#print(passList)
 
 #Add password logic
-
 if args.a:
-    site = input('Enter sitename: ')
-    username = input('Enter username: ')
+    site = getSiteName()
+    username = getUsername()
     check = False
     while not check:
         password = getpass('Enter password: ')
@@ -122,29 +117,31 @@ if args.a:
             check = True
         else:
             print('Passwords do not match! Try again.')
-    enc = AES.new(hsh, AES.MODE_CBC, 'IV256 0987654321')
+            
     password = encryptstring(password)
-    
-    
     if isUpdate(site, username):
         updatePassword(site, username, password)
     else:
         addPassword(site, username, password)    
-    
+    DB.close()
     
     
 #find password
 else:
-    site = input('Enter sitename: ')
     
+    #print all records
+    if args.z:
+        for rec in findAllRecords():
+            print(rec)
     
-    #result is of type list
+    site = getSiteName()   
+    
     result = findRecords(site)
     DB.close()
     
     
     if len(result)>1:
-        username = input('Enter username: ')
+        username = getUsername()
         check = False
         for rec in result:
             if rec[1]==username:
@@ -161,7 +158,6 @@ else:
         print('Site not found.')
         sys.exit(0)
         
-    enc = AES.new(hsh, AES.MODE_CBC, 'IV256 0987654321')
     outputPassword(pss)
 try:
     DB.close()
