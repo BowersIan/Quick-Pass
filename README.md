@@ -30,3 +30,10 @@ optional arguments:
 Will it keep your family away from your passwords? Yes.
 
 Will it keep the NSA out of your accounts? Absolutely not.
+
+Furthermore, I do not make nor imply any guarantee, warranty, or any such idea that this program works, works as intended, is secure, or any other such notion.
+
+### Recommendations
+Alias the script with the absolute path of your database file so that you don't have to worry about specifying each run.
+
+Backup the database file for when you accidentally delete it or your hard drive fails.
