@@ -7,23 +7,30 @@ Requires the Crypto, sqlite3, and clipboard python3 packages. Install them with 
 See printout of help message below:
 
 ```
-usage: Quick-Pass.py [-h] [-a] [-c] [-u U] [-s S] [-z] [filepath]
+usage: quick-pass [-h] [-a] [-c] [--no-copy] [-u U] [-s S] [-p P] [-z] [-r]
+                  [filepath]
 
 positional arguments:
   filepath    Path to your passwords file. If not supplied will
-              create/overwrite Data.db
+              create/overwrite ./Data.db
 
 optional arguments:
   -h, --help  show this help message and exit
   -a          Add or update password
   -c          Copy password to clipboard. Requires the clipboard module to be
-              installed
+              installed; if not installed, this argument is ignored
+  --no-copy   Overides -c and prints password to standard out
   -u U        Specify the username for the specific site so you will not be
               asked if more than one record is found for the site. Ignored if
               there is only one record listed for the site.
   -s S        Specify the site to retrieve the password from so you will not
               be asked
-  -z          List known site and username combinations
+  -p P        Specify the password to manage. If not specified, will be asked
+              for. Not recommended to use as password will be stored in
+              command history and visible to anyone watching.
+  -z, -l      List known site and username combinations
+  -r          Removes selected site and usernaname combination
+
 ```
 
 ### Is it cryptographically secure?
