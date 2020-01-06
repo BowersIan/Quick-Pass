@@ -60,13 +60,19 @@ def findAllRecords():
     cursor.execute('SELECT SITE, USERNAME FROM PASS')
     return cursor.fetchall()
 
+def removeRecord(site, usr):
+    cursor.execute('DELETE FROM PASS WHERE SITE = ? and USERNAME = ?;',(site, usr))
+    DB.commit()
+
 def outputPassword(pss):
-    #enc = AES.new(hsh, AES.MODE_CBC, 'IV256 0987654321')
     password = decryptstring(pss)
     p1 = password.decode('ISO-8859-1').rstrip('|')
-    if args.c:
-        clipboard.copy(p1)
-        print('Password copied to clipboard')
+    if args.c and not args.no_copy:
+        try:
+            clipboard.copy(p1)
+            print('Password copied to clipboard')
+        except:
+            print(p1)
     else:
         print(p1)
         
@@ -84,13 +90,31 @@ def getSiteName():
         site = args.s
     return site
 
+def getPassword():
+    if args.p is None:
+        check = False
+        while not check:
+            password = getpass('Enter password: ')
+            passwordcheck = getpass('Enter password again: ')
+            if password == passwordcheck:
+                check = True
+            else:
+                print('Passwords do not match! Try again.')
+    else:
+        password = args.p
+        
+    return password
+
 parser=argparse.ArgumentParser()
 parser.add_argument('-a', help='Add or update password', action='store_true')
-parser.add_argument('-c', help='Copy password to clipboard. Requires the clipboard module to be installed', action='store_true')
+parser.add_argument('-c', help='Copy password to clipboard. Requires the clipboard module to be installed; if not installed, this argument is ignored', action='store_true')
+parser.add_argument('--no-copy', help='Overides -c and prints password to standard out', action='store_true')
 parser.add_argument('-u', help='Specify the username for the specific site so you will not be asked if more than one record is found for the site. Ignored if there is only one record listed for the site.')
 parser.add_argument('-s', help='Specify the site to retrieve the password from so you will not be asked')
-parser.add_argument('filepath', help='Path to your passwords file. If not supplied will create/overwrite Data.db', nargs='?', default='Data.db')
-parser.add_argument('-z', help='List known site and username combinations', action='store_true')
+parser.add_argument('-p', help='Specify the password to manage. If not specified, will be asked for. Not recommended to use as password will be stored in command history and visible to anyone watching.')
+parser.add_argument('filepath', help='Path to your passwords file. If not supplied will create/overwrite ./Data.db', nargs='?', default='Data.db')
+parser.add_argument('-z','-l', help='List known site and username combinations', action='store_true')
+parser.add_argument('-r', help='Removes selected site and usernaname combination', action='store_true')
 
 args=parser.parse_args()
 
@@ -105,19 +129,16 @@ else:
     cursor = DB.cursor()
     
 
+#Print all records
+if args.z:
+    for rec in findAllRecords():
+        print(rec)
 #Add password logic
 if args.a:
     site = getSiteName()
     username = getUsername()
-    check = False
-    while not check:
-        password = getpass('Enter password: ')
-        passwordcheck = getpass('Enter password again: ')
-        if password == passwordcheck:
-            check = True
-        else:
-            print('Passwords do not match! Try again.')
-            
+    password = getPassword()
+    
     password = encryptstring(password)
     if isUpdate(site, username):
         updatePassword(site, username, password)
@@ -125,14 +146,14 @@ if args.a:
         addPassword(site, username, password)    
     DB.close()
     
-    
+elif args.r:
+    site = getSiteName()
+    username = getUsername()
+    removeRecord(site, username)
+    DB.close()
 #find password
 else:
     
-    #print all records
-    if args.z:
-        for rec in findAllRecords():
-            print(rec)
     
     site = getSiteName()   
     
