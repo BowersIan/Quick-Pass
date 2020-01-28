@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+#Quick-Pass.py
+#By Ian Bowers
+#Easy to use, local only, password manager
+#Version v1.1.0
+
+
 import sys
 import os
 from Crypto.Cipher import AES
@@ -12,44 +18,66 @@ from getpass import getpass
 import sqlite3
 import base64
 
+#Requests the encryption passphrase from the user, then returns the SHA256 hash of it
 def getDecryptionPassword():
     pwd = getpass('Encryption Passphrase: ')
     hsh = hashpassword(pwd.encode('utf-8'))
     return hsh
 
+#Modifies password to be a multiple of 16, then returns the encrypted strings
 def encryptstring(string):
     if len(string)%16 != 0:
         for i in range (0,16-len(string)%16):
             string=string+'|'
-    return base64.b64encode(getEncrypter().encrypt(string))
+    hsh=getDecryptionPassword()
+    encrypters=getEncrypter(hsh, 2)
+    return [base64.b64encode(encrypters[0].encrypt(string)), base64.b64encode(encrypters[1].encrypt(hsh))]
+    
+#Generates and returns the specified number of encryption objects
+def getEncrypter(hsh, num=1):
+    returnset=[]
+    while num>0:
+        returnset.append(AES.new(hsh, AES.MODE_CBC, 'IV256 0987654321'))
+        num-=1
+    return returnset
 
-def getEncrypter():
-    hsh = getDecryptionPassword()
-    return AES.new(hsh, AES.MODE_CBC, 'IV256 0987654321')
+#Decrypts the given string with the given hashed passphrase and returns the decrypted string
+def decryptstring(string, hsh):
+    return getEncrypter(hsh)[0].decrypt(base64.b64decode(string))
 
-def decryptstring(string):
-    return getEncrypter().decrypt(base64.b64decode(string))
-
+#Returns the given string as a SHA256 hash
 def hashpassword(pwd):
     hsh = SHA256.new()
     hsh.update(pwd)
     return hsh.digest()
 
 def makeDB():
-    cursor.execute('CREATE TABLE PASS(SITE TEXT, USERNAME TEXT, PASSWORD BLOB);')
+    cursor.execute('CREATE TABLE PASS(SITE TEXT, USERNAME TEXT, PASSWORD BLOB, KEY BLOB);')
     DB.commit()
+    
+#Adds the Key column to PASS table if it does not already exist
+def upgradeDB():
+    try:
+        cursor.execute('ALTER TABLE PASS ADD COLUMN KEY BLOB;')
+        DB.commit()
+        print('DB upgraded to v1.1.0')
+    except sqlite3.OperationalError as e:
+        print('DB already at v1.1.0')
 
+#Returns True if the given Site, Username pair already exists in the database, false otherwise
 def isUpdate(site, usr):
     cursor.execute('SELECT * FROM PASS WHERE SITE = ? AND USERNAME = ?;',(site, usr))
     row = cursor.fetchone()
     return row is not None
 
-def updatePassword(site, usr, pss):
-    cursor.execute('UPDATE PASS SET PASSWORD = ? WHERE SITE = ? AND USERNAME = ?;',(pss, site, usr))
+#Updates an already existing password in the database
+def updatePassword(site, usr, pss, key):
+    cursor.execute('UPDATE PASS SET PASSWORD = ?, KEY = ? WHERE SITE = ? AND USERNAME = ?;',(pss, key, site, usr,))
     DB.commit()
     
-def addPassword(site, usr, pss):
-    cursor.execute('INSERT INTO PASS (SITE, USERNAME, PASSWORD) VALUES(?,?,?);',(site, usr, pss))
+#Adds a new record to the database
+def addPassword(site, usr, pss, key):
+    cursor.execute('INSERT INTO PASS (SITE, USERNAME, PASSWORD, KEY) VALUES(?,?,?,?);',(site, usr, pss, key))
     DB.commit()
     
 def findRecords(site):
@@ -64,17 +92,27 @@ def removeRecord(site, usr):
     cursor.execute('DELETE FROM PASS WHERE SITE = ? and USERNAME = ?;',(site, usr))
     DB.commit()
 
-def outputPassword(pss):
-    password = decryptstring(pss)
-    p1 = password.decode('ISO-8859-1').rstrip('|')
-    if args.c and not args.no_copy:
-        try:
-            clipboard.copy(p1)
-            print('Password copied to clipboard')
-        except:
-            print(p1)
+def checkPassphrase(hsh, hshkey):
+    key = decryptstring(hshkey, hsh)
+    return hsh == key
+
+
+def outputPassword(pss, hshkey):
+    
+    hsh=getDecryptionPassword()
+    if hshkey is not None and not checkPassphrase(hsh, hshkey):
+        print('Incorrect passphrase!')
     else:
-        print(p1)
+        password = decryptstring(pss, hsh)
+        p1 = password.decode('ISO-8859-1').rstrip('|')
+        if args.c and not args.no_copy:
+            try:
+                clipboard.copy(p1)
+                print('Password copied to clipboard')
+            except:
+                print(p1)
+        else:
+            print(p1)
         
 def getUsername():
     if args.u is None:
@@ -115,6 +153,7 @@ parser.add_argument('-p', help='Specify the password to manage. If not specified
 parser.add_argument('filepath', help='Path to your passwords file. If not supplied will create/overwrite ./Data.db', nargs='?', default='Data.db')
 parser.add_argument('-z','-l', help='List known site and username combinations', action='store_true')
 parser.add_argument('-r', help='Removes selected site and usernaname combination', action='store_true')
+parser.add_argument('--upgrade', help='Upgrades your database for a newer version of Quick-Pass', action='store_true')
 
 args=parser.parse_args()
 
@@ -128,22 +167,26 @@ else:
     DB = sqlite3.connect(args.filepath)
     cursor = DB.cursor()
     
+if args.upgrade:
+    upgradeDB()
 
 #Print all records
 if args.z:
     for rec in findAllRecords():
         print(rec)
+        
 #Add password logic
 if args.a:
     site = getSiteName()
     username = getUsername()
     password = getPassword()
     
-    password = encryptstring(password)
+    password_key = encryptstring(password)
+    print(password_key)
     if isUpdate(site, username):
-        updatePassword(site, username, password)
+        updatePassword(site, username, password_key[0], password_key[1])
     else:
-        addPassword(site, username, password)    
+        addPassword(site, username, password_key[0], password_key[1])    
     DB.close()
     
 elif args.r:
@@ -167,6 +210,7 @@ else:
         for rec in result:
             if rec[1]==username:
                 pss=rec[2]
+                hshkey = rec[3]
                 check=True
                 break
         if not check:
@@ -175,11 +219,12 @@ else:
     
     elif len(result)==1:
         pss = result[0][2]
+        hshkey = result[0][3]
     else:
         print('Site not found.')
         sys.exit(0)
         
-    outputPassword(pss)
+    outputPassword(pss,hshkey)
 try:
     DB.close()
 except:
