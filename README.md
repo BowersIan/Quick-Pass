@@ -30,6 +30,7 @@ optional arguments:
               command history and visible to anyone watching.
   -z, -l      List known site and username combinations
   -r          Removes selected site and usernaname combination
+  --upgrade   Upgrades your database for a newer version of Quick-Pass
 
 ```
 
