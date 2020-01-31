@@ -80,23 +80,28 @@ def addPassword(site, usr, pss, key):
     cursor.execute('INSERT INTO PASS (SITE, USERNAME, PASSWORD, KEY) VALUES(?,?,?,?);',(site, usr, pss, key))
     DB.commit()
     
+#Returns all records for a given site
 def findRecords(site):
     cursor.execute('SELECT * FROM PASS WHERE SITE = ?;',(site,))
     return cursor.fetchall()
     
+#Returns all Site, Username pairs
 def findAllRecords():
     cursor.execute('SELECT SITE, USERNAME FROM PASS')
     return cursor.fetchall()
 
+#Removes a given record from the database
 def removeRecord(site, usr):
     cursor.execute('DELETE FROM PASS WHERE SITE = ? and USERNAME = ?;',(site, usr))
     DB.commit()
 
+#Decrypts the given encrypted, hashed passphrase and checks it against the used decryption key
 def checkPassphrase(hsh, hshkey):
     key = decryptstring(hshkey, hsh)
     return hsh == key
 
 
+#Handles outputting of password
 def outputPassword(pss, hshkey):
     
     hsh=getDecryptionPassword()
@@ -182,7 +187,7 @@ if args.a:
     password = getPassword()
     
     password_key = encryptstring(password)
-    print(password_key)
+    #print(password_key)
     if isUpdate(site, username):
         updatePassword(site, username, password_key[0], password_key[1])
     else:
